@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.8)
+project(quad_midbridge_attitude_offboard)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(px4_msgs REQUIRED)
+find_package(quad_midbridge_msgs REQUIRED)
+
+add_executable(attitude_offboard_node src/attitude_offboard_node.cpp)
+ament_target_dependencies(attitude_offboard_node rclcpp px4_msgs quad_midbridge_msgs)
+
+install(TARGETS attitude_offboard_node
+  DESTINATION lib/${PROJECT_NAME})
+
+ament_package()

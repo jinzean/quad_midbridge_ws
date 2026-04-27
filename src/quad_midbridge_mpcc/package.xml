@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>quad_midbridge_mpcc</name>
+  <version>0.0.2</version>
+  <description>Intent-conditioned MPCC node scaffold with pluggable solver backends.</description>
+  <maintainer email="591856170@qq.com">Zean Jin</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>quad_midbridge_msgs</depend>
+  <depend>px4_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
