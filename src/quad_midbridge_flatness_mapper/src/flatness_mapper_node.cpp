@@ -93,12 +93,14 @@ private:
     out.from_governor = true;
     out.valid = msg->feasible;
 
-    // NED-oriented prototype mapping:
-    // desired force direction follows a_ref + g * e3, where e3 = [0, 0, 1] in NED.
+    // NED/FRD mapping:
+    // PX4 local position uses NED. For multirotor dynamics:
+    // a = g * e3 - T * b3 / m, so T * b3 / m = g * e3 - a.
+    // Therefore, negative z acceleration means upward acceleration and should increase thrust.
     const std::array<double, 3> fd = {
-      static_cast<double>(msg->acceleration.x),
-      static_cast<double>(msg->acceleration.y),
-      static_cast<double>(msg->acceleration.z) + gravity_
+      -static_cast<double>(msg->acceleration.x),
+      -static_cast<double>(msg->acceleration.y),
+      gravity_ - static_cast<double>(msg->acceleration.z)
     };
     const auto b3 = normalize(fd);
 
