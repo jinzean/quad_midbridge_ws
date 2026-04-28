@@ -30,9 +30,9 @@
     enable_takeoff_gate: true
     takeoff_target_height_m: 1.0
     takeoff_release_height_m: 1.00
-    takeoff_kp_z: 3.20
-    takeoff_kd_z: 1.20
-    takeoff_accel_z_min: -2.40
+    takeoff_kp_z: 3.60
+    takeoff_kd_z: 1.50
+    takeoff_accel_z_min: -2.80
     takeoff_accel_z_max: 0.30
     takeoff_lock_xy: true
     takeoff_lock_yaw: true
