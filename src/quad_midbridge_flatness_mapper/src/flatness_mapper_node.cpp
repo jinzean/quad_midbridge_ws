@@ -93,10 +93,11 @@ private:
     out.from_governor = true;
     out.valid = msg->feasible;
 
-    // NED/FRD mapping:
+    // NED/FRD mapping for PX4 attitude-thrust setpoints.
     // PX4 local position uses NED. For multirotor dynamics:
-    // a = g * e3 - T * b3 / m, so T * b3 / m = g * e3 - a.
-    // Therefore, negative z acceleration means upward acceleration and should increase thrust.
+    //   a = g * e3 - (T/m) * b3
+    // therefore (T/m) * b3 = g * e3 - a.
+    // Negative acceleration.z is upward acceleration and must increase thrust.
     const std::array<double, 3> fd = {
       -static_cast<double>(msg->acceleration.x),
       -static_cast<double>(msg->acceleration.y),

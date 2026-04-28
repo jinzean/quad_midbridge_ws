@@ -86,12 +86,14 @@ public:
     if (a_norm_raw > input.params.max_accel) {
       a_cmd = mul(a_cmd, input.params.max_accel / std::max(a_norm_raw, 1e-6));
     }
+    a_cmd.z = clamp(a_cmd.z, -input.params.max_accel_z, input.params.max_accel_z);
 
     Vec3 j_cmd = mul(sub(a_cmd, input.state.a), 1.0 / std::max(input.params.horizon_dt, 1e-3));
     const double j_norm = norm(j_cmd);
     if (j_norm > input.params.max_jerk) {
       j_cmd = mul(j_cmd, input.params.max_jerk / std::max(j_norm, 1e-6));
     }
+    j_cmd.z = clamp(j_cmd.z, -input.params.max_jerk_z, input.params.max_jerk_z);
 
     const double tangent_yaw = std::atan2(target.tangent.y, target.tangent.x);
     const double obs_priority = clamp(intent.observation_priority, 0.0, 1.0);
@@ -115,7 +117,7 @@ public:
     out.ref.contour_error = static_cast<float>(nearest.contour_error);
     out.ref.lag_error = static_cast<float>(nearest.lag_error);
 
-    const Vec3 total_accel{a_cmd.x, a_cmd.y, a_cmd.z + input.params.gravity};
+    const Vec3 total_accel{-a_cmd.x, -a_cmd.y, input.params.gravity - a_cmd.z};
     double thrust = norm(total_accel);
     if (thrust < input.params.thrust_min) {
       thrust = input.params.thrust_min;

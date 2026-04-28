@@ -3,20 +3,37 @@
     publish_rate_hz: 50.0
     raw_ref_timeout_sec: 0.30
     intent_timeout_sec: 0.60
-    max_step_xy: 0.15
+    local_pos_timeout_sec: 0.50
+
+    max_step_xy: 0.02
     max_step_z: 0.10
-    max_vel_xy: 1.20
+    max_vel_xy: 0.30
     max_vel_z: 0.70
-    max_accel_xy: 3.00
+    max_accel_xy: 0.60
     max_accel_z: 2.00
-    max_jerk_xy: 6.00
+    max_jerk_xy: 1.20
     max_jerk_z: 4.00
     max_yaw_step: 0.10
-    max_yaw_rate: 0.80
+    max_yaw_rate: 0.20
+
     min_thrust_nominal: 4.5
     max_thrust_nominal: 15.0
-    max_tilt_nominal: 0.60
+    max_tilt_nominal: 0.25
+
     hover_z_ned: -1.5
     terminal_xy_tol: 0.25
     terminal_z_tol: 0.20
     hover_on_timeout: true
+
+    # Ground-to-MPCC gate. Before release height, governor ignores MPCC horizontal
+    # commands, locks initial x/y and heading, and only performs vertical takeoff.
+    enable_takeoff_gate: true
+    takeoff_target_height_m: 1.0
+    takeoff_release_height_m: 1.00
+    takeoff_kp_z: 3.20
+    takeoff_kd_z: 1.20
+    takeoff_accel_z_min: -2.40
+    takeoff_accel_z_max: 0.30
+    takeoff_lock_xy: true
+    takeoff_lock_yaw: true
+    post_takeoff_blend_time_sec: 6.0

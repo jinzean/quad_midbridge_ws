@@ -80,6 +80,7 @@ public:
     if (a_norm > input.params.max_accel) {
       a_ref = mul(a_ref, input.params.max_accel / a_norm);
     }
+    a_ref.z = clamp(a_ref.z, -input.params.max_accel_z, input.params.max_accel_z);
     out.ref.acceleration = toRosVector3(a_ref);
 
     Vec3 j_ref = mul(sub(a_ref, input.state.a), 1.0 / std::max(input.params.horizon_dt, 1e-3));
@@ -87,13 +88,14 @@ public:
     if (j_norm > input.params.max_jerk) {
       j_ref = mul(j_ref, input.params.max_jerk / j_norm);
     }
+    j_ref.z = clamp(j_ref.z, -input.params.max_jerk_z, input.params.max_jerk_z);
     out.ref.jerk = toRosVector3(j_ref);
 
     out.ref.progress = static_cast<float>(target.s);
     out.ref.contour_error = static_cast<float>(nearest.contour_error);
     out.ref.lag_error = static_cast<float>(nearest.lag_error);
 
-    const Vec3 total_accel{a_ref.x, a_ref.y, a_ref.z + input.params.gravity};
+    const Vec3 total_accel{-a_ref.x, -a_ref.y, input.params.gravity - a_ref.z};
     double thrust = norm(total_accel);
     if (thrust < input.params.thrust_min) {
       thrust = input.params.thrust_min;

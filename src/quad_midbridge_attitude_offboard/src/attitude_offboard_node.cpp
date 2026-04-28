@@ -64,11 +64,13 @@ private:
     }
     if (refTimedOut()) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "AttitudeThrustReference timed out; not publishing attitude setpoint.");
+      warmup_counter_ = 0;
       return;
     }
 
     if (require_valid_reference_ && !latest_ref_->valid) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "AttitudeThrustReference invalid; not publishing attitude setpoint.");
+      warmup_counter_ = 0;
       return;
     }
 

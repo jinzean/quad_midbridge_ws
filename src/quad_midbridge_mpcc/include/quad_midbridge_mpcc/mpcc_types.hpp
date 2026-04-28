@@ -52,7 +52,9 @@ struct MpccParams
   double tilt_max_rad{0.65};
   double max_speed{1.5};
   double max_accel{4.0};
+  double max_accel_z{1.5};
   double max_jerk{8.0};
+  double max_jerk_z{3.0};
   double max_yaw_rate{0.8};
 
   double weight_contour{8.0};

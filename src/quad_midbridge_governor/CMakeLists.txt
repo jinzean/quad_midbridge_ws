@@ -10,10 +10,11 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(px4_msgs REQUIRED)
 find_package(quad_midbridge_msgs REQUIRED)
 
 add_executable(governor_node src/governor_node.cpp)
-ament_target_dependencies(governor_node rclcpp quad_midbridge_msgs)
+ament_target_dependencies(governor_node rclcpp px4_msgs quad_midbridge_msgs)
 
 install(TARGETS governor_node
   DESTINATION lib/${PROJECT_NAME})

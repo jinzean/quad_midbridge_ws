@@ -66,7 +66,7 @@ SolverOutput packGeneratedSolution(
   out.ref.contour_error = static_cast<float>(contour_error);
   out.ref.lag_error = static_cast<float>(lag_error);
 
-  const Vec3 total_accel{a.x, a.y, a.z + input.params.gravity};
+  const Vec3 total_accel{-a.x, -a.y, input.params.gravity - a.z};
   const double thrust = clamp(norm(total_accel), problem.nominal_bounds.thrust_min, problem.nominal_bounds.thrust_max);
   const double cos_tilt = clamp(total_accel.z / std::max(norm(total_accel), 1e-6), -1.0, 1.0);
   const double tilt = std::min(std::acos(cos_tilt), problem.nominal_bounds.tilt_max_rad);

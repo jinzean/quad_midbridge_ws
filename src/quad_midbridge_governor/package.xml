@@ -2,13 +2,14 @@
 <package format="3">
   <name>quad_midbridge_governor</name>
   <version>0.0.1</version>
-  <description>Reference governor for quad midbridge.</description>
-  <maintainer email="591856170@qq.com">zjnu</maintainer>
+  <description>Safety reference governor for the quad midbridge.</description>
+  <maintainer email="591856170@qq.com">Zean Jin</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>px4_msgs</depend>
   <depend>quad_midbridge_msgs</depend>
 
   <export>

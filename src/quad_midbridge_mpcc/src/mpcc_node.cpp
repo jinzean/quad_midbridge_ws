@@ -47,7 +47,9 @@ public:
     params_.tilt_max_rad = declare_parameter<double>("tilt_max_rad", 0.65);
     params_.max_speed = declare_parameter<double>("max_speed", 1.5);
     params_.max_accel = declare_parameter<double>("max_accel", 4.0);
+    params_.max_accel_z = declare_parameter<double>("max_accel_z", 1.5);
     params_.max_jerk = declare_parameter<double>("max_jerk", 8.0);
+    params_.max_jerk_z = declare_parameter<double>("max_jerk_z", 3.0);
     params_.max_yaw_rate = declare_parameter<double>("max_yaw_rate", 0.8);
     params_.weight_contour = declare_parameter<double>("weight_contour", 8.0);
     params_.weight_lag = declare_parameter<double>("weight_lag", 2.0);
