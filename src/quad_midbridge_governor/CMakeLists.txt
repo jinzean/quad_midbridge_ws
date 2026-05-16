@@ -11,6 +11,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(px4_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(quad_midbridge_msgs REQUIRED)
 
 add_executable(governor_node src/governor_node.cpp)
@@ -18,12 +19,25 @@ ament_target_dependencies(governor_node rclcpp px4_msgs quad_midbridge_msgs)
 
 
 add_executable(aligned_local_intent_node src/aligned_local_intent_node.cpp)
-ament_target_dependencies(aligned_local_intent_node rclcpp quad_midbridge_msgs px4_msgs)
+ament_target_dependencies(aligned_local_intent_node rclcpp geometry_msgs quad_midbridge_msgs px4_msgs)
 
-install(TARGETS aligned_local_intent_node governor_node
+add_executable(scripted_local_intent_manager_node src/scripted_local_intent_manager_node.cpp)
+ament_target_dependencies(scripted_local_intent_manager_node rclcpp geometry_msgs quad_midbridge_msgs px4_msgs)
+
+add_executable(circular_local_intent_manager_node src/circular_local_intent_manager_node.cpp)
+ament_target_dependencies(circular_local_intent_manager_node rclcpp geometry_msgs quad_midbridge_msgs px4_msgs)
+
+install(TARGETS
+  aligned_local_intent_node
+  scripted_local_intent_manager_node
+  circular_local_intent_manager_node
+  governor_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config)
+
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch)
 
 ament_package()

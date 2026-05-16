@@ -17,21 +17,37 @@ std::array<double, AcadosModelLayout::kNx> packState(const KinematicState & s)
           s.psi, s.s_progress};
 }
 
-AcadosCostWeights makeWeights(const SolverInput & input, double risk)
+AcadosCostWeights makeWeights(
+  const SolverInput & input,
+  const quad_midbridge_msgs::msg::LocalIntent & intent,
+  double risk)
 {
   AcadosCostWeights w;
   const double contour_gain = 1.0 + 1.5 * risk;
   const double progress_gain = std::max(0.2, 1.0 - 0.6 * risk);
-  w.contour = input.params.weight_contour * contour_gain;
+
+  // LocalIntent weights are high-level tuning hooks from the upstream planner.
+  // Keep the old YAML defaults when the fields are left at their ROS default 0.
+  const double contour_base =
+    intent.contour_weight > 1.0e-3f ?
+    static_cast<double>(intent.contour_weight) : input.params.weight_contour;
+  const double progress_base =
+    intent.progress_weight > 1.0e-3f ?
+    static_cast<double>(intent.progress_weight) : input.params.weight_progress;
+  const double terminal_contour_ratio =
+    input.params.weight_contour > 1.0e-6 ?
+    input.params.weight_terminal_contour / input.params.weight_contour : 1.5;
+
+  w.contour = contour_base * contour_gain;
   w.lag = input.params.weight_lag;
-  w.progress = input.params.weight_progress * progress_gain;
+  w.progress = progress_base * progress_gain;
   w.yaw = input.params.weight_yaw * (1.0 + 0.5 * risk);
   w.speed = input.params.weight_speed;
   w.accel = input.params.weight_accel;
   w.jerk = input.params.weight_jerk;
   w.delta_jerk = input.params.weight_delta_jerk;
   w.delta_yaw_rate = input.params.weight_delta_yaw_rate;
-  w.terminal_contour = input.params.weight_terminal_contour * contour_gain;
+  w.terminal_contour = contour_base * terminal_contour_ratio * contour_gain;
   w.terminal_lag = input.params.weight_terminal_lag;
   w.terminal_yaw = input.params.weight_terminal_yaw * (1.0 + 0.3 * risk);
   return w;
@@ -61,7 +77,11 @@ AcadosConstraintBounds makeBounds(const SolverInput & input, const quad_midbridg
 std::array<double, AcadosModelLayout::kNu> makeControlRef(const PathFrame & frame, double desired_speed, double yaw_ref)
 {
   (void)frame;
-  return {0.0, 0.0, 0.0, yaw_ref, desired_speed};
+  (void)yaw_ref;
+
+  // u = [jx, jy, jz, psi_dot, s_dot].
+  // yaw_ref is a state reference for psi, not a yaw-rate reference.
+  return {0.0, 0.0, 0.0, 0.0, desired_speed};
 }
 }  // namespace
 
@@ -77,7 +97,7 @@ AcadosProblemData buildAcadosProblem(const SolverInput & input)
 
   const auto & intent = *input.intent;
   out.risk_level = std::clamp(static_cast<double>(intent.risk_level), 0.0, 1.0);
-  out.nominal_weights = makeWeights(input, out.risk_level);
+  out.nominal_weights = makeWeights(input, intent, out.risk_level);
   out.nominal_bounds = makeBounds(input, intent, out.risk_level);
 
   const double path_len = estimatePathLength(intent);
@@ -93,11 +113,12 @@ AcadosProblemData buildAcadosProblem(const SolverInput & input)
     return out;
   }
 
-  out.desired_speed = clamp(static_cast<double>(intent.speed_pref), 0.0, std::max(0.1, out.nominal_bounds.speed_max));
+  out.desired_speed = intent.terminal_hold ? 0.0 :
+    clamp(static_cast<double>(intent.speed_pref), 0.0, std::max(1.0e-3, out.nominal_bounds.speed_max));
   const double tangent_yaw = std::atan2(nearest.tangent.y, nearest.tangent.x);
   const double obs_priority = clamp(static_cast<double>(intent.observation_priority), 0.0, 1.0);
   out.desired_yaw = wrapAngle(obs_priority * static_cast<double>(intent.yaw_pref) + (1.0 - obs_priority) * tangent_yaw);
-  out.use_speed_preference = intent.speed_pref > 1e-3f;
+  out.use_speed_preference = !intent.terminal_hold && intent.speed_pref > 1e-3f;
 
   const double ds = out.desired_speed * input.params.horizon_dt;
   out.stages.reserve(static_cast<size_t>(std::max(1, input.params.horizon_steps)));
@@ -113,6 +134,7 @@ AcadosProblemData buildAcadosProblem(const SolverInput & input)
     stage.yaw_ref = out.desired_yaw;
     stage.speed_ref = out.desired_speed;
     stage.risk_level = out.risk_level;
+    stage.gravity = input.params.gravity;
     stage.weights = out.nominal_weights;
     stage.bounds = out.nominal_bounds;
     stage.u_ref = makeControlRef(frame, out.desired_speed, out.desired_yaw);
@@ -134,6 +156,7 @@ AcadosProblemData buildAcadosProblem(const SolverInput & input)
   out.terminal.path_tangent = {terminal_frame.tangent.x, terminal_frame.tangent.y, terminal_frame.tangent.z};
   out.terminal.s_ref = s_terminal;
   out.terminal.yaw_ref = out.desired_yaw;
+  out.terminal.gravity = input.params.gravity;
   out.terminal.weights = out.nominal_weights;
   out.terminal.bounds = out.nominal_bounds;
   out.terminal.x_ref = {

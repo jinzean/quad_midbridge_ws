@@ -24,3 +24,5 @@ mpcc_node:
     solver_backend: acados_generated
     fallback_backend: full_state_placeholder
     use_local_position_z: true
+    state_timeout_sec: 0.50
+    max_velocity_sample_dt: 0.20

@@ -12,9 +12,11 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(quad_midbridge_msgs REQUIRED)
+find_package(px4_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_executable(flatness_mapper_node src/flatness_mapper_node.cpp)
-ament_target_dependencies(flatness_mapper_node rclcpp geometry_msgs quad_midbridge_msgs)
+ament_target_dependencies(flatness_mapper_node rclcpp geometry_msgs quad_midbridge_msgs px4_msgs std_msgs)
 
 install(TARGETS flatness_mapper_node
   DESTINATION lib/${PROJECT_NAME})

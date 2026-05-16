@@ -9,19 +9,24 @@
 namespace quad_midbridge_mpcc
 {
 
+static constexpr std::size_t kGeneratedParamDim = 32;
+static constexpr std::size_t kGeneratedConstraintDim = 9;
+
 struct GeneratedStageBuffers
 {
   std::array<double, AcadosModelLayout::kNx> x_ref{};
   std::array<double, AcadosModelLayout::kNu> u_ref{};
-  std::array<double, 16> p{};  // free-form stage parameter vector for generated code
-  std::array<double, 6> lh{};  // lower bounds for generic constraints
-  std::array<double, 6> uh{};  // upper bounds for generic constraints
+  std::array<double, kGeneratedParamDim> p{};  // runtime parameter vector for generated acados code
+  std::array<double, kGeneratedConstraintDim> lh{};  // lower bounds for nonlinear h constraints
+  std::array<double, kGeneratedConstraintDim> uh{};  // upper bounds for nonlinear h constraints
+  std::array<double, 5> lbu{};  // lower bounds for [jx, jy, jz, psi_dot, s_dot]
+  std::array<double, 5> ubu{};  // upper bounds for [jx, jy, jz, psi_dot, s_dot]
 };
 
 struct GeneratedTerminalBuffers
 {
   std::array<double, AcadosModelLayout::kNx> x_ref{};
-  std::array<double, 16> p{};
+  std::array<double, kGeneratedParamDim> p{};
 };
 
 struct GeneratedSolverWorkspace

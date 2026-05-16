@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+*.db3 binary
+*.so binary
+*.o binary
+*.zip binary

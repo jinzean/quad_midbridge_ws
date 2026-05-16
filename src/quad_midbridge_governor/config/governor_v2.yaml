@@ -23,17 +23,44 @@
     hover_z_ned: -1.5
     terminal_xy_tol: 0.25
     terminal_z_tol: 0.20
+    enable_terminal_bridge: true
+    terminal_bridge_duration_sec: 4.0
+    terminal_bridge_min_distance_m: 0.03
     hover_on_timeout: true
+    # If true, raw-reference timeout produces a valid level hover attitude setpoint.
+    # If false, timeout only publishes diagnostics and attitude_offboard stops setpoints.
+    timeout_hover_feasible: true
+
+    # Height semantics for the governor.
+    # takeoff_relative: default flat SITL mode, keep height relative to takeoff lock.
+    # path_z: future 3D/terrain-aware mode, preserve path z and add bounded z correction.
+    # passthrough: debug mode, do not impose extra height shaping.
+    height_mode: takeoff_relative
+    path_z_kp: 2.0
+    path_z_kd: 1.5
+    path_z_accel_correction_min: -1.2
+    path_z_accel_correction_max: 1.2
 
     # Ground-to-MPCC gate. Before release height, governor ignores MPCC horizontal
     # commands, locks initial x/y and heading, and only performs vertical takeoff.
     enable_takeoff_gate: true
-    takeoff_target_height_m: 1.0
-    takeoff_release_height_m: 1.00
-    takeoff_kp_z: 3.60
-    takeoff_kd_z: 1.50
-    takeoff_accel_z_min: -2.80
-    takeoff_accel_z_max: 0.30
+    takeoff_target_height_m: 1.5
+    takeoff_release_height_m: 1.45
+    takeoff_kp_z: 4.00
+    takeoff_kd_z: 2.20
+    takeoff_accel_z_min: -2.60
+    takeoff_accel_z_max: 0.20
+
+    # Release only after the vehicle is high enough and dynamically calm.
+    # These gates avoid switching to MPCC while the vehicle is still climbing or drifting.
+    takeoff_release_vz_abs_max: 0.15
+    takeoff_release_vxy_abs_max: 0.20
+    takeoff_release_z_error_abs_max: 0.18
+    takeoff_release_stable_time_sec: 1.20
+
+    takeoff_kp_xy: 0.60
+    takeoff_kd_xy: 0.90
+    takeoff_accel_xy_max: 0.45
     takeoff_lock_xy: true
     takeoff_lock_yaw: true
-    post_takeoff_blend_time_sec: 6.0
+    post_takeoff_blend_time_sec: 12.0

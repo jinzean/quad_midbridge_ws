@@ -64,7 +64,8 @@ public:
     const double speed_cap = std::min(
       static_cast<double>(intent.speed_max > 1e-3 ? intent.speed_max : input.params.max_speed),
       input.params.max_speed * (1.0 - 0.35 * risk));
-    const double desired_speed = clamp(static_cast<double>(intent.speed_pref), 0.0, std::max(0.1, speed_cap));
+    const double desired_speed = intent.terminal_hold ? 0.0 :
+      clamp(static_cast<double>(intent.speed_pref), 0.0, std::max(1.0e-3, speed_cap));
 
     const double s0 = clamp(std::max(input.state.s_progress, nearest.s), 0.0, path_len);
     const double ds = desired_speed * input.params.horizon_dt;
@@ -97,7 +98,8 @@ public:
 
     const double tangent_yaw = std::atan2(target.tangent.y, target.tangent.x);
     const double obs_priority = clamp(intent.observation_priority, 0.0, 1.0);
-    const double desired_yaw = wrapAngle(obs_priority * intent.yaw_pref + (1.0 - obs_priority) * tangent_yaw);
+    const double yaw_err_pref_to_tangent = wrapAngle(tangent_yaw - static_cast<double>(intent.yaw_pref));
+    const double desired_yaw = wrapAngle(static_cast<double>(intent.yaw_pref) + (1.0 - obs_priority) * yaw_err_pref_to_tangent);
     double yaw_rate_cmd = wrapAngle(desired_yaw - input.state.psi) / std::max(input.params.preview_time, input.params.horizon_dt);
     if (std::abs(yaw_rate_cmd) > input.params.max_yaw_rate) {
       yaw_rate_cmd = clamp(yaw_rate_cmd, -input.params.max_yaw_rate, input.params.max_yaw_rate);

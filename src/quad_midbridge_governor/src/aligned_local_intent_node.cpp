@@ -1,5 +1,8 @@
+#include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,7 +20,17 @@ public:
   : Node("aligned_local_intent_node")
   {
     pub_rate_ = declare_parameter<double>("pub_rate", 5.0);
+    local_pos_timeout_sec_ = declare_parameter<double>("local_pos_timeout_sec", 0.5);
     target_z_ = declare_parameter<double>("target_z", -1.0);
+
+    // During takeoff, publish the local intent at the current PX4 local z first.
+    // After the vehicle reaches takeoff_z_blend_start_height_m, smoothly blend to target_z.
+    enable_takeoff_z_blend_ = declare_parameter<bool>("enable_takeoff_z_blend", true);
+    takeoff_z_blend_start_height_m_ =
+      declare_parameter<double>("takeoff_z_blend_start_height_m", 0.70);
+    takeoff_z_blend_height_m_ =
+      declare_parameter<double>("takeoff_z_blend_height_m", 0.30);
+
     path_spacing_ = declare_parameter<double>("path_spacing", 0.5);
     num_points_ = declare_parameter<int>("num_points", 5);
 
@@ -47,9 +60,9 @@ public:
     intent_pub_ = create_publisher<quad_midbridge_msgs::msg::LocalIntent>(
       "/midbridge/local_intent", 10);
 
-    const auto period_ms = static_cast<int>(1000.0 / pub_rate_);
+    const auto period_ms = static_cast<int>(1000.0 / std::max(pub_rate_, 1.0));
     timer_ = create_wall_timer(
-      std::chrono::milliseconds(period_ms),
+      std::chrono::milliseconds(std::max(period_ms, 1)),
       std::bind(&AlignedLocalIntentNode::onTimer, this));
 
     RCLCPP_INFO(
@@ -63,10 +76,26 @@ public:
 private:
   void localPosCb(const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg)
   {
-    current_x_ = static_cast<double>(msg->x);
-    current_y_ = static_cast<double>(msg->y);
-    current_z_ = static_cast<double>(msg->z);
-    current_heading_ = static_cast<double>(msg->heading);
+    const double x = static_cast<double>(msg->x);
+    const double y = static_cast<double>(msg->y);
+    const double z = static_cast<double>(msg->z);
+    const double heading = static_cast<double>(msg->heading);
+
+    const bool valid = msg->xy_valid && msg->z_valid &&
+                       std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
+    if (!valid) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Ignoring invalid VehicleLocalPosition in aligned_local_intent_node: xy_valid=%s z_valid=%s",
+        msg->xy_valid ? "true" : "false",
+        msg->z_valid ? "true" : "false");
+      return;
+    }
+
+    current_x_ = x;
+    current_y_ = y;
+    current_z_ = z;
+    current_heading_ = heading;
     last_local_time_ = now();
     have_local_position_ = true;
 
@@ -90,7 +119,7 @@ private:
     if (!have_local_position_) {
       return true;
     }
-    return (now() - last_local_time_).seconds() > 0.5;
+    return (now() - last_local_time_).seconds() > local_pos_timeout_sec_;
   }
 
   void updateAnchorIfNeeded()
@@ -102,6 +131,24 @@ private:
     anchor_x_ = current_x_;
     anchor_y_ = current_y_;
     anchor_heading_ = std::isfinite(current_heading_) ? current_heading_ : anchor_heading_;
+  }
+
+  double computeEffectiveTargetZ(double & alpha_out) const
+  {
+    if (!enable_takeoff_z_blend_) {
+      alpha_out = 1.0;
+      return target_z_;
+    }
+
+    // PX4 local position uses NED. Upward motion makes z negative.
+    const double height_m = std::max(0.0, -current_z_);
+    const double blend_start = std::max(0.0, takeoff_z_blend_start_height_m_);
+    const double blend_window = std::max(1.0e-3, takeoff_z_blend_height_m_);
+
+    const double alpha = std::clamp((height_m - blend_start) / blend_window, 0.0, 1.0);
+    alpha_out = alpha;
+
+    return (1.0 - alpha) * current_z_ + alpha * target_z_;
   }
 
   void onTimer()
@@ -122,6 +169,9 @@ private:
     const double dx = std::cos(anchor_heading_);
     const double dy = std::sin(anchor_heading_);
 
+    double z_blend_alpha = 1.0;
+    const double effective_target_z = computeEffectiveTargetZ(z_blend_alpha);
+
     const int n = std::max(2, num_points_);
     intent.centerline_points.clear();
     intent.centerline_s.clear();
@@ -132,7 +182,7 @@ private:
       geometry_msgs::msg::Point p;
       p.x = anchor_x_ + s * dx;
       p.y = anchor_y_ + s * dy;
-      p.z = target_z_;
+      p.z = effective_target_z;
 
       intent.centerline_points.push_back(p);
       intent.centerline_s.push_back(s);
@@ -159,12 +209,15 @@ private:
 
     RCLCPP_INFO_THROTTLE(
       get_logger(), *get_clock(), 1000,
-      "publish aligned intent: anchor=(%.2f, %.2f), heading=%.3f, first=(%.2f, %.2f), speed=%.2f",
+      "publish aligned intent: anchor=(%.2f, %.2f), heading=%.3f, first=(%.2f, %.2f, %.2f), target_z=%.2f, alpha=%.2f, speed=%.2f",
       anchor_x_,
       anchor_y_,
       anchor_heading_,
       intent.centerline_points.front().x,
       intent.centerline_points.front().y,
+      intent.centerline_points.front().z,
+      target_z_,
+      z_blend_alpha,
       speed_pref_);
   }
 
@@ -187,7 +240,11 @@ private:
   double anchor_heading_{0.0};
 
   double pub_rate_{5.0};
+  double local_pos_timeout_sec_{0.5};
   double target_z_{-1.0};
+  bool enable_takeoff_z_blend_{true};
+  double takeoff_z_blend_start_height_m_{0.70};
+  double takeoff_z_blend_height_m_{0.30};
   double path_spacing_{0.5};
   int num_points_{5};
 

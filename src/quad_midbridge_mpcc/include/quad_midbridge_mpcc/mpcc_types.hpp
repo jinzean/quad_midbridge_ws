@@ -133,6 +133,7 @@ struct AcadosStageData
   double yaw_ref{0.0};
   double speed_ref{0.0};
   double risk_level{0.0};
+  double gravity{9.81};
   AcadosCostWeights weights{};
   AcadosConstraintBounds bounds{};
 };
@@ -144,6 +145,7 @@ struct AcadosTerminalData
   std::array<double, 3> path_tangent{1.0, 0.0, 0.0};
   double s_ref{0.0};
   double yaw_ref{0.0};
+  double gravity{9.81};
   AcadosCostWeights weights{};
   AcadosConstraintBounds bounds{};
 };

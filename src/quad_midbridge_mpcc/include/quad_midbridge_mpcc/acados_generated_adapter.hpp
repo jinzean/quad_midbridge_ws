@@ -22,9 +22,15 @@ struct AcadosGeneratedAdapterResult
 class AcadosGeneratedAdapter
 {
 public:
+  AcadosGeneratedAdapter() = default;
+  ~AcadosGeneratedAdapter();
+
+  AcadosGeneratedAdapter(const AcadosGeneratedAdapter &) = delete;
+  AcadosGeneratedAdapter & operator=(const AcadosGeneratedAdapter &) = delete;
+
   bool available() const;
   std::string availabilityReason() const;
-  AcadosGeneratedAdapterResult solve(const AcadosProblemData & problem) const;
+  AcadosGeneratedAdapterResult solve(const AcadosProblemData & problem);
 
 private:
   bool pushProblem(
@@ -32,7 +38,10 @@ private:
     const AcadosProblemData & problem,
     std::string & status) const;
 
+  void resetWorkspace();
+
   AcadosGeneratedBindings bindings_{};
+  GeneratedSolverWorkspace workspace_{};
 };
 
 }  // namespace quad_midbridge_mpcc

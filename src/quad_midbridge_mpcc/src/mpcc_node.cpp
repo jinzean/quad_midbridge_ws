@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -61,6 +63,8 @@ public:
     solver_backend_ = declare_parameter<std::string>("solver_backend", "acados_skeleton");
     fallback_backend_ = declare_parameter<std::string>("fallback_backend", "full_state_placeholder");
     use_local_position_z_ = declare_parameter<bool>("use_local_position_z", true);
+    state_timeout_sec_ = declare_parameter<double>("state_timeout_sec", 0.5);
+    max_velocity_sample_dt_ = declare_parameter<double>("max_velocity_sample_dt", 0.20);
 
     solver_ = createSolver(solver_backend_);
 
@@ -84,7 +88,7 @@ public:
     debug_pub_ = create_publisher<quad_midbridge_msgs::msg::MpccDebug>(
       "/midbridge/mpcc_debug", 10);
 
-    const auto period = std::chrono::duration<double>(1.0 / solve_rate_hz_);
+    const auto period = std::chrono::duration<double>(1.0 / std::max(solve_rate_hz_, 1.0));
     timer_ = create_wall_timer(
       std::chrono::duration_cast<std::chrono::milliseconds>(period),
       std::bind(&MpccNode::timerCallback, this));
@@ -99,31 +103,66 @@ private:
   void intentCallback(const quad_midbridge_msgs::msg::LocalIntent::SharedPtr msg)
   {
     latest_intent_ = msg;
+    if (state_.valid && latest_intent_ && latest_intent_->centerline_points.size() >= 2) {
+      const auto frame = projectToPath(*latest_intent_, state_.p);
+      if (frame.valid) {
+        state_.s_progress = frame.s;
+      }
+    }
   }
 
   void localPositionCallback(const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg)
   {
+    const double x = static_cast<double>(msg->x);
+    const double y = static_cast<double>(msg->y);
+    const double z = static_cast<double>(msg->z);
+    const double vx = static_cast<double>(msg->vx);
+    const double vy = static_cast<double>(msg->vy);
+    const double vz = static_cast<double>(msg->vz);
+
+    const bool valid = msg->xy_valid && msg->z_valid && msg->v_xy_valid && msg->v_z_valid &&
+                       std::isfinite(x) && std::isfinite(y) && std::isfinite(z) &&
+                       std::isfinite(vx) && std::isfinite(vy) && std::isfinite(vz);
+    if (!valid) {
+      state_.valid = false;
+      have_prev_velocity_sample_ = false;
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Ignoring invalid VehicleLocalPosition for MPCC: xy=%s z=%s v_xy=%s v_z=%s",
+        msg->xy_valid ? "true" : "false",
+        msg->z_valid ? "true" : "false",
+        msg->v_xy_valid ? "true" : "false",
+        msg->v_z_valid ? "true" : "false");
+      return;
+    }
+
     const Vec3 prev_v = state_.v;
     const bool had_prev_sample = have_prev_velocity_sample_;
     const double prev_t = last_local_pos_time_sec_;
 
-    state_.p.x = msg->x;
-    state_.p.y = msg->y;
+    state_.p.x = x;
+    state_.p.y = y;
     if (use_local_position_z_) {
-      state_.p.z = msg->z;
+      state_.p.z = z;
     }
-    state_.v.x = msg->vx;
-    state_.v.y = msg->vy;
-    state_.v.z = msg->vz;
-    state_.valid = std::isfinite(msg->x) && std::isfinite(msg->y) && std::isfinite(msg->z) &&
-                   std::isfinite(msg->vx) && std::isfinite(msg->vy) && std::isfinite(msg->vz);
+    state_.v.x = vx;
+    state_.v.y = vy;
+    state_.v.z = vz;
+    state_.valid = true;
+    last_state_receive_time_ = now();
 
     const double now_sec = static_cast<double>(msg->timestamp) * 1e-6;
     if (had_prev_sample && now_sec > prev_t + 1e-4) {
       const double dt = now_sec - prev_t;
-      state_.a.x = (state_.v.x - prev_v.x) / dt;
-      state_.a.y = (state_.v.y - prev_v.y) / dt;
-      state_.a.z = (state_.v.z - prev_v.z) / dt;
+      if (dt <= max_velocity_sample_dt_) {
+        state_.a.x = (state_.v.x - prev_v.x) / dt;
+        state_.a.y = (state_.v.y - prev_v.y) / dt;
+        state_.a.z = (state_.v.z - prev_v.z) / dt;
+      } else {
+        state_.a = Vec3{};
+      }
+    } else if (!had_prev_sample) {
+      state_.a = Vec3{};
     }
     last_local_pos_time_sec_ = now_sec;
     have_prev_velocity_sample_ = true;
@@ -143,8 +182,77 @@ private:
     q[1] = msg->q[1];
     q[2] = msg->q[2];
     q[3] = msg->q[3];
-    state_.psi = yawFromQuaternionNed(q);
+    if (std::isfinite(q[0]) && std::isfinite(q[1]) && std::isfinite(q[2]) && std::isfinite(q[3])) {
+      state_.psi = yawFromQuaternionNed(q);
+    }
   }
+
+  bool stateTimedOut() const
+  {
+    if (!state_.valid) {
+      return true;
+    }
+    return (now() - last_state_receive_time_).seconds() > state_timeout_sec_;
+  }
+
+
+  void publishTerminalHoldReference()
+  {
+    if (!latest_intent_ || latest_intent_->centerline_points.empty()) {
+      return;
+    }
+
+    const auto & intent = *latest_intent_;
+    const auto & p0 = intent.centerline_points.front();
+
+    quad_midbridge_msgs::msg::ExecutableReference ref{};
+    ref.header.stamp = now();
+    ref.header.frame_id = "map";
+
+    ref.position.x = p0.x;
+    ref.position.y = p0.y;
+    ref.position.z = p0.z;
+
+    ref.velocity.x = 0.0f;
+    ref.velocity.y = 0.0f;
+    ref.velocity.z = 0.0f;
+
+    ref.acceleration.x = 0.0f;
+    ref.acceleration.y = 0.0f;
+    ref.acceleration.z = 0.0f;
+
+    ref.jerk.x = 0.0f;
+    ref.jerk.y = 0.0f;
+    ref.jerk.z = 0.0f;
+
+    ref.yaw = intent.yaw_pref;
+    ref.yaw_rate = 0.0f;
+    ref.progress = 0.0f;
+    ref.contour_error = 0.0f;
+    ref.lag_error = 0.0f;
+    ref.thrust_nominal = static_cast<float>(params_.gravity);
+    ref.tilt_nominal = 0.0f;
+    ref.mode = 0;
+    ref.feasible = true;
+    ref.violation_flags = 2048u;
+
+    quad_midbridge_msgs::msg::MpccDebug debug{};
+    debug.header = ref.header;
+    debug.solver_time_ms = 0.0f;
+    debug.objective_value = 0.0f;
+    debug.contour_error = 0.0f;
+    debug.lag_error = 0.0f;
+    debug.progress_rate = 0.0f;
+    debug.predicted_min_thrust = static_cast<float>(params_.gravity);
+    debug.predicted_max_thrust = static_cast<float>(params_.gravity);
+    debug.predicted_max_tilt = 0.0f;
+    debug.feasible = true;
+    debug.status = "terminal_hold_bypass";
+
+    ref_pub_->publish(ref);
+    debug_pub_->publish(debug);
+  }
+
 
   void timerCallback()
   {
@@ -158,9 +266,17 @@ private:
       return;
     }
 
+    if (latest_intent_->terminal_hold) {
+      publishTerminalHoldReference();
+      return;
+    }
+
     SolverInput in;
     in.stamp = now();
     in.state = state_;
+    if (stateTimedOut()) {
+      in.state.valid = false;
+    }
     in.intent = latest_intent_;
     in.params = params_;
     in.fallback_backend = fallback_backend_;
@@ -186,9 +302,12 @@ private:
 
   double solve_rate_hz_{30.0};
   bool use_local_position_z_{true};
+  double state_timeout_sec_{0.5};
+  double max_velocity_sample_dt_{0.20};
   std::string solver_backend_{"acados_skeleton"};
   std::string fallback_backend_{"full_state_placeholder"};
   double last_local_pos_time_sec_{0.0};
+  rclcpp::Time last_state_receive_time_{0, 0, RCL_ROS_TIME};
   bool have_prev_velocity_sample_{false};
 };
 

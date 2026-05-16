@@ -19,6 +19,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ExecutableReference.msg"
   "msg/AttitudeThrustReference.msg"
   "msg/MpccDebug.msg"
+  "msg/FlatnessDebug.msg"
   DEPENDENCIES builtin_interfaces geometry_msgs std_msgs
 )
 

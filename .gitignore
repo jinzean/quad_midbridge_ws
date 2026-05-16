@@ -1,6 +1,16 @@
 build/
 install/
 log/
+bags/
+.quad_midbridge_logs/
+
+# Local SITL/debug artifacts
+*_debug/
+*_check/
+*_check_*/
+*.db3
+metadata.yaml
+px4_*.log
 
 __pycache__/
 *.pyc
@@ -15,6 +25,15 @@ __pycache__/
 *.tar.gz
 *.zip
 *.log
+*.Zone.Identifier
+*Zone.Identifier
+attitude.*
+
+# Generated acados code is reproducible from tools/generate_mpcc_acados_solver.py
+src/quad_midbridge_mpcc/third_party/
+
+# Local environment setup; keep machine-specific paths out of commits.
+setup_midbridge_acados.bash
 
 # local backup files
 *.bak*
